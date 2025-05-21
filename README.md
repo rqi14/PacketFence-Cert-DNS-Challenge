@@ -5,7 +5,7 @@ This script is tested only on PacketFence ZEN image.
 
 # Deployment
 
-Change `DOMAIN` and `EMAIL` in `letsencrypt-renew.sh`
+Change `DOMAIN`, `SUBDOMAIN`, and `EMAIL` in `letsencrypt-renew.sh`
 
 Upload `letsencrypt-renew.sh` to /usr/local/pf/conf/"
 
@@ -29,6 +29,11 @@ In the first run, it will create a virtualenv for certbot and aliyun dns plugin 
 If you encounter any errors, try to remove the folder `rm -R /opt/certbot-dns-aliyun` and execute the script again.
 
 The script comes with the following options:
-  --force-config-packetfence  Force PacketFence configuration (copying certs and restarting
-                                services) even if the certificate does not need renewal.
+
+  --force-config-packetfence  Force PacketFence configuration (copying certs and restarting services) even if the certificate does not need renewal.
+  
+  --force-renewal             Force Certbot to attempt renewal even if the certificate is not nearing expiration.
+  
   -h, --help                  Display this help message and exit.
+
+  
