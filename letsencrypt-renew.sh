@@ -1,7 +1,28 @@
 #!/bin/bash
 
-# Default values
-FORCE_CONFIG=false
+# ============== Customizable Variables ==============
+DOMAIN="pf.example.com"
+# Comma-separated list of additional hostnames to include as Subject Alternative Names (SANs).
+# Entries can be subdomain prefixes (e.g., "www", "api") which will be appended to DOMAIN,
+# or fully qualified domain names (FQDNs) (e.g., "sub.example.com", "other.net").
+# Example: if DOMAIN is "example.com" and SUBDOMAINS is "www,portal.example.com,backup.net",
+# the certificate will cover "example.com", "www.example.com", "portal.example.com", and "backup.net".
+# Leave empty if no additional hostnames are needed.
+SUBDOMAINS="pfm.example.com"
+EMAIL="user@example.com"
+
+VENV_PATH="/opt/certbot-dns-aliyun"
+CREDENTIALS_FILE="/usr/local/pf/conf/aliyun.ini"
+
+HTTP_CERT_DIR="/usr/local/pf/conf/ssl"
+RADIUS_CERT_DIR="/usr/local/pf/raddb/certs"
+# Note: LOG_FILE is mentioned in cron job examples, not directly used by this script for its own logging.
+# A cron job would typically redirect output: /path/to/script.sh >> /var/log/letsencrypt-renew.log 2>&1
+# ====================================================
+
+# Script behavior / Default values
+FORCE_CONFIG=false # This will be updated by command line arguments if provided
+FORCE_CERTBOT_RENEWAL=false # This will be updated by command line arguments if provided
 MAX_RETRIES=5
 INITIAL_RETRY_INTERVAL=3 # Start with a shorter interval
 MAX_SINGLE_RETRY_INTERVAL=15 # Max seconds for a single sleep
@@ -16,6 +37,8 @@ usage() {
     echo "Options:"
     echo "  --force-config-packetfence  Force PacketFence configuration (copying certs and restarting"
     echo "                                services) even if the certificate does not need renewal."
+    echo "  --force-renewal             Force Certbot to attempt renewal even if the certificate is not"
+    echo "                                nearing expiration."
     echo "  -h, --help                  Display this help message and exit."
     echo ""
     echo "Prerequisites:"
@@ -243,6 +266,10 @@ while [[ $# -gt 0 ]]; do
             FORCE_CONFIG=true
             shift # past argument
             ;;
+        --force-renewal)
+            FORCE_CERTBOT_RENEWAL=true
+            shift # past argument
+            ;;
         -h|--help)
             usage
             ;;
@@ -254,18 +281,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Set virtual environment path
-VENV_PATH="/opt/certbot-dns-aliyun"
+# Ensure Python version for virtual environment path is determined correctly
 PYTHON_VERSION=$(python3 -c 'import sys; print(f"python{sys.version_info.major}.{sys.version_info.minor}")')
 export PYTHONPATH="${VENV_PATH}/lib/${PYTHON_VERSION}/site-packages:$PYTHONPATH"
-
-# Domain and email configuration
-DOMAIN="packetfence.example.com"
-EMAIL="your_email@example.com"
-
-# Certificate storage paths
-HTTP_CERT_DIR="/usr/local/pf/conf/ssl"
-RADIUS_CERT_DIR="/usr/local/pf/raddb/certs"
 
 # Create directories if they don't exist
 mkdir -p "$HTTP_CERT_DIR" "$RADIUS_CERT_DIR"
@@ -297,7 +315,6 @@ if [ ! -d "$VENV_PATH" ]; then
 fi
 
 # Check if aliyun.ini exists and has correct permissions
-CREDENTIALS_FILE="/usr/local/pf/conf/aliyun.ini"
 if [ ! -f "$CREDENTIALS_FILE" ]; then
     echo "Error: aliyun.ini file not found. Please create it with your Aliyun DNS credentials:"
     echo "  dns_aliyun_access_key = YOUR_ACCESS_KEY"
@@ -312,8 +329,12 @@ chown root:root "$CREDENTIALS_FILE" # Assumes script is run as root or with sudo
 
 # Check if we need to obtain a new certificate
 CERT_PATH="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
-NEED_RENEWAL=false
-if [ -f "$CERT_PATH" ]; then
+NEED_RENEWAL=false # Default, will be set to true if conditions met
+
+if [ "$FORCE_CERTBOT_RENEWAL" = true ]; then
+    echo "Forcing renewal attempt as per --force-renewal flag."
+    NEED_RENEWAL=true
+elif [ -f "$CERT_PATH" ]; then
     # Check if certificate is valid for more than 30 days
     EXPIRY_DATE=$(openssl x509 -enddate -noout -in "$CERT_PATH" | cut -d= -f2)
     EXPIRY_SECONDS=$(date -d "$EXPIRY_DATE" +%s)
@@ -340,13 +361,49 @@ fi
 # Get the certificate if needed
 if [ "$NEED_RENEWAL" = true ]; then
     echo "Obtaining certificate for $DOMAIN..."
+
+    declare -a cert_domains_args=("-d" "$DOMAIN")
+    declare -a certbot_extra_args=() # Array for additional certbot flags like --force-renewal
+
+    if [ "$FORCE_CERTBOT_RENEWAL" = true ]; then
+        certbot_extra_args+=("--force-renewal")
+    fi
+
+    if [ -n "$SUBDOMAINS" ]; then
+        echo "Processing additional hostnames (SANs): $SUBDOMAINS"
+        declare -a temp_sub_array
+        # Use mapfile and process substitution to split by comma and handle various spacings
+        mapfile -t temp_sub_array < <(echo "$SUBDOMAINS" | tr ',' '\\n')
+
+        for item in "${temp_sub_array[@]}"; do
+            # Trim whitespace from each item
+            sub=$(echo "$item" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -n "$sub" ]; then # Ensure it's not an empty string after trimming
+                if [[ "$sub" == "$DOMAIN" ]]; then
+                    echo "DEBUG: Main domain $DOMAIN found in SUBDOMAINS variable, already primary."
+                elif [[ "$sub" == *.* ]]; then # If $sub contains a dot, assume it's an FQDN
+                    echo "Adding SAN to certificate request: $sub"
+                    cert_domains_args+=("-d" "$sub")
+                else # Otherwise, it's a prefix
+                    local full_hostname_candidate="$sub.$DOMAIN"
+                    echo "Adding SAN to certificate request: $full_hostname_candidate"
+                    cert_domains_args+=("-d" "$full_hostname_candidate")
+                fi
+            else
+                echo "DEBUG: Skipped empty or whitespace-only subdomain part from input '$item'."
+            fi
+        done
+    fi
+
     "${VENV_PATH}/bin/certbot" certonly \
         --authenticator dns-aliyun \
         --dns-aliyun-credentials "$CREDENTIALS_FILE" \
         --non-interactive \
         --agree-tos \
         --email "$EMAIL" \
-        -d "$DOMAIN"
+        "${cert_domains_args[@]}" \
+        "${certbot_extra_args[@]}" \
+        --key-type rsa --rsa-key-size 2048
 
     if [ $? -ne 0 ]; then
         echo "Error: Failed to obtain certificate from Let's Encrypt."
