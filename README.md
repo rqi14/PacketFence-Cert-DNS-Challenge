@@ -5,6 +5,8 @@ This script is tested only on PacketFence ZEN image.
 
 # Deployment
 
+Change `DOMAIN` and `EMAIL` in `letsencrypt-renew.sh`
+
 Upload `letsencrypt-renew.sh` to /usr/local/pf/conf/"
 
 Give the script permission to run with `chmod +x /usr/local/pf/conf/letsencrypt-renew.sh`
