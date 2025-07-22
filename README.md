@@ -1,39 +1,58 @@
-# PacketFence-Aliyun-DNS-Challenge
-A script for obtaining Let's Encrypt certificate with DNS Challenge for Aliyun domains in PacketFence
+# PacketFence Certificate DNS Challenge
 
-This script is tested only on PacketFence ZEN image.
+Automated Let's Encrypt certificate management for PacketFence using DNS challenges. This repository provides scripts for two popular DNS providers:
 
-# Deployment
+## Supported DNS Providers
 
-Change `DOMAIN`, `SUBDOMAIN`, and `EMAIL` in `letsencrypt-renew.sh`
+- **[Aliyun (Alibaba Cloud)](/aliyun)** - For domains managed by Aliyun DNS
+- **[Cloudflare](/cloudflare)** - For domains managed by Cloudflare DNS
 
-Upload `letsencrypt-renew.sh` to /usr/local/pf/conf/"
+## Overview
 
-Give the script permission to run with `chmod +x /usr/local/pf/conf/letsencrypt-renew.sh`
+These scripts automate the process of:
+1. Obtaining Let's Encrypt certificates using DNS-01 challenge
+2. Automatically configuring PacketFence to use the new certificates
+3. Restarting required services (HTTP and RADIUS)
+4. Setting up certificate renewal
 
-Make sure python3-venv package is installed (e.g., apt install python3-venv)."
+## Which Version Should I Use?
 
-Save Aliyun DNS credentials in /usr/local/pf/conf/aliyun.ini." 
-For the cerbot Aliyun DNS plugin and the tutorial of obtaining credentials, please refer to https://github.com/tengattack/certbot-dns-aliyun
+Choose the version based on your DNS provider:
 
-aliyun.ini example
-```
-# Aliyun DNS API credentials
-dns_aliyun_access_key = example
-dns_aliyun_access_key_secret = example
-```
+| DNS Provider | Directory | When to Use |
+|--------------|-----------|-------------|
+| Aliyun | [`/aliyun`](/aliyun) | If your domain's DNS is managed by Alibaba Cloud (Aliyun) |
+| Cloudflare | [`/cloudflare`](/cloudflare) | If your domain's DNS is managed by Cloudflare |
 
-Run the script to obtain Let's Encrypt certificate and configure PacketFence to use it for HTTP and RADIUS.
+## Requirements
 
-In the first run, it will create a virtualenv for certbot and aliyun dns plugin in /opt/certbot-dns-aliyun. 
-If you encounter any errors, try to remove the folder `rm -R /opt/certbot-dns-aliyun` and execute the script again.
+- PacketFence ZEN image (tested environment)
+- Python 3 with venv support
+- Appropriate DNS provider credentials
+- Domain with admin access for DNS record modification
 
-The script comes with the following options:
+## Quick Start
 
-  --force-config-packetfence  Force PacketFence configuration (copying certs and restarting services) even if the certificate does not need renewal.
-  
-  --force-renewal             Force Certbot to attempt renewal even if the certificate is not nearing expiration.
-  
-  -h, --help                  Display this help message and exit.
+1. **Choose your DNS provider** from the table above
+2. **Navigate to the corresponding directory** (`aliyun/` or `cloudflare/`)
+3. **Follow the specific README** in that directory for detailed setup instructions
 
-  
+## Features
+
+- ✅ Automatic certificate renewal
+- ✅ PacketFence integration (HTTP & RADIUS)
+- ✅ Service restart automation
+- ✅ Virtual environment management
+- ✅ Force renewal options
+- ✅ Comprehensive error handling
+
+## Support
+
+Each DNS provider implementation is located in its own directory with specific documentation:
+
+- [Aliyun Setup Guide](/aliyun/README.md)
+- [Cloudflare Setup Guide](/cloudflare/README.md)
+
+## License
+
+This project is licensed under the terms specified in the [LICENSE](LICENSE) file. 
