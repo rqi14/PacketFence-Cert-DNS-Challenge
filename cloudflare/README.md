@@ -48,3 +48,25 @@ The script supports the following command-line options:
   `--force-renewal`             Force Certbot to attempt renewal even if the certificate is not nearing expiration.
   
   `-h, --help`                  Display this help message and exit.
+
+## Troubleshooting
+
+If you encounter DNS verification failures, please refer to the [TROUBLESHOOTING.md](TROUBLESHOOTING.md) file for detailed solutions.
+
+### Common Issues
+
+1. **DNS Verification Failures**: The script now includes a configurable DNS propagation wait time (default: 60 seconds). If you experience verification failures, try increasing the `DNS_PROPAGATION_SECONDS` variable in the script.
+
+2. **API Token Permissions**: Ensure your Cloudflare API token has the following permissions:
+   - Zone:Zone:Read
+   - Zone:DNS:Edit
+
+3. **DNS Propagation**: DNS changes may take time to propagate globally. The script includes a test script (`test-dns.sh`) to help verify DNS record propagation.
+
+### Testing DNS Configuration
+
+Run the DNS test script to verify your domain configuration:
+```bash
+chmod +x test-dns.sh
+./test-dns.sh
+```

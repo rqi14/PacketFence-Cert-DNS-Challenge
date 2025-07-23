@@ -44,4 +44,14 @@ The script comes with the following options:
   
   `-h, --help`                  Display this help message and exit.
 
-  
+## Troubleshooting
+
+If you encounter DNS verification failures, please refer to the [TROUBLESHOOTING.md](TROUBLESHOOTING.md) file for detailed solutions.
+
+### Common Issues
+
+1. **DNS Verification Failures**: The script now includes a configurable DNS propagation wait time (default: 60 seconds). If you experience verification failures, try increasing the `DNS_PROPAGATION_SECONDS` variable in the script.
+
+2. **API Credentials Permissions**: Ensure your Aliyun API credentials have the necessary permissions for DNS management.
+
+3. **DNS Propagation**: DNS changes may take time to propagate globally. Use the provided troubleshooting guide to verify DNS record propagation.

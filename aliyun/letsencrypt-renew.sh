@@ -11,6 +11,10 @@ DOMAIN="pf.example.com"
 SUBDOMAINS="pfm.example.com"
 EMAIL="user@example.com"
 
+# DNS propagation wait time in seconds (default: 60)
+# Increase this value if you experience DNS verification failures
+DNS_PROPAGATION_SECONDS=60
+
 VENV_PATH="/opt/certbot-dns-aliyun"
 CREDENTIALS_FILE="/usr/local/pf/conf/aliyun.ini"
 
@@ -42,9 +46,14 @@ usage() {
     echo "  -h, --help                  Display this help message and exit."
     echo ""
     echo "Prerequisites:"
-    echo "  - python3-venv package must be installed (e.g., apt install python3-venv)."
-    echo "  - Aliyun DNS credentials must be in /usr/local/pf/conf/aliyun.ini."
-    exit 0
+echo "  - python3-venv package must be installed (e.g., apt install python3-venv)."
+echo "  - Aliyun DNS credentials must be in /usr/local/pf/conf/aliyun.ini."
+echo ""
+echo "Troubleshooting:"
+echo "  - If DNS verification fails, try increasing DNS_PROPAGATION_SECONDS (default: 60)"
+echo "  - Check that your Aliyun API credentials have the necessary permissions"
+echo "  - Ensure the domains are properly configured in Aliyun DNS"
+exit 0
 }
 
 # Function to get service status
@@ -398,6 +407,7 @@ if [ "$NEED_RENEWAL" = true ]; then
     "${VENV_PATH}/bin/certbot" certonly \
         --authenticator dns-aliyun \
         --dns-aliyun-credentials "$CREDENTIALS_FILE" \
+        --dns-aliyun-propagation-seconds "$DNS_PROPAGATION_SECONDS" \
         --non-interactive \
         --agree-tos \
         --email "$EMAIL" \
