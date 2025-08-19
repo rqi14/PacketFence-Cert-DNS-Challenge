@@ -444,7 +444,8 @@ echo "Setting permissions and ownership for certificate files..."
 chmod 644 "${HTTP_CERT_DIR}/server.crt"
 chmod 644 "${HTTP_CERT_DIR}/server.chain.crt"
 chmod 644 "${HTTP_CERT_DIR}/server.pem"
-chmod 600 "${HTTP_CERT_DIR}/server.key"
+# Make the private key group-readable so the captive portal can read Radius key via symlink
+chmod 640 "${HTTP_CERT_DIR}/server.key"
 echo "DEBUG: Setting HTTP certs owner to pf:pf"
 chown pf:pf "${HTTP_CERT_DIR}/server.crt" "${HTTP_CERT_DIR}/server.key" "${HTTP_CERT_DIR}/server.chain.crt" "${HTTP_CERT_DIR}/server.pem"
 
@@ -456,6 +457,24 @@ chown pf:pf "${RADIUS_CERT_DIR}/server.crt" "${RADIUS_CERT_DIR}/server.key"
 # RADIUS ca.pem is NOT managed by this script (content, permissions, or ownership)
 # It should be managed by PacketFence UI or admin for client CA trust purposes.
 # Original ca.pem was pf:pf 664 - we are not touching it.
+
+# Ensure portal container (httpd.portal) can read keys even if its pf UID differs from host pf UID
+if command -v docker >/dev/null 2>&1; then
+    if docker inspect -f '{{.State.Running}}' httpd.portal >/dev/null 2>&1; then
+        PORTAL_UID=$(docker exec httpd.portal id -u pf 2>/dev/null || true)
+        HOST_PF_UID=$(id -u pf 2>/dev/null || echo 0)
+        if [ -n "$PORTAL_UID" ] && [ "$PORTAL_UID" != "$HOST_PF_UID" ]; then
+            echo "INFO: Container pf UID ($PORTAL_UID) differs from host pf UID ($HOST_PF_UID). Applying read ACL to keys."
+            if command -v setfacl >/dev/null 2>&1; then
+                setfacl -m u:${PORTAL_UID}:r "${RADIUS_CERT_DIR}/server.key" || true
+                # In some setups the portal may read the HTTP key; grant ACL as well
+                setfacl -m u:${PORTAL_UID}:r "${HTTP_CERT_DIR}/server.key" || true
+            else
+                echo "WARN: setfacl not available. Consider 'apt install acl' or aligning container pf UID/GID. Skipping ACL grant."
+            fi
+        fi
+    fi
+fi
 
 # Restart HTTP services
 echo "Restarting HTTP services..."
